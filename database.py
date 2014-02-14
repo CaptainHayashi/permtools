@@ -14,6 +14,22 @@ Session = sqlalchemy.orm.sessionmaker(bind=engine)
 Base = sqlalchemy.ext.declarative.declarative_base()
 
 
+# Table joining Permission and Role in a many-to-many relationship.
+role_permission = sqlalchemy.Table(
+    'auth_officer',
+    Base.metadata,
+    sqlalchemy.Column(
+        'officerid',
+        sqlalchemy.Integer,
+        sqlalchemy.ForeignKey('officer.officerid')
+    ),
+    sqlalchemy.Column(
+        'lookupid',
+        sqlalchemy.Integer,
+        sqlalchemy.ForeignKey('l_action.typeid')
+    )
+)
+
 class Permission(Base):
     """A permission token in the permissions system."""
 
@@ -60,6 +76,12 @@ class Role(Base):
         'type', sqlalchemy.CHAR(1)
     )
 
+    permissions = sqlalchemy.orm.relationship(
+        'Permission',
+        secondary=role_permission,
+        backref='roles'
+    )
+
 
 @contextlib.contextmanager
 def session_scope():
@@ -73,3 +95,23 @@ def session_scope():
         raise
     finally:
         session.close()
+
+
+def get_role_by_alias(session, alias):
+    """Gets a role from the database given its alias.
+
+    Args:
+        session: The current database session.j
+        alias: The alias whose corresponding Role is sought.
+
+    Returns:
+        A Role object representing the role with the given alias.
+    """
+    return session.query(
+        Role
+    ).options(
+        sqlalchemy.orm.subqueryload('permissions')
+    ).filter(
+        Role.alias == alias
+    ).one()
+    session.expunge(role)
