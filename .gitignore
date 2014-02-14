@@ -2,3 +2,4 @@
 !LICENCE
 !.gitignore
 !*.py
+!*.awk
