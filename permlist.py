@@ -4,7 +4,7 @@
 Lists all permissions available in the system.
 
 Each is listed, one per line, in alphabetical short-name order, in the format
-'SHORT_NAME Long Name'.
+'SHORT_NAME:Long Name'.
 
 Usage: permlist.py
 """
@@ -20,4 +20,4 @@ if __name__ == '__main__':
         )
 
     for permission in permissions:
-        print(permission.short_name, permission.description)
+        print(permission.short_name, permission.description, sep=':')
