@@ -33,11 +33,7 @@ import database
 
 if __name__ == '__main__':
     with database.session_scope() as session:
-        permissions = (
-            session
-                .query(database.Permission)
-                .order_by(database.Permission.short_name)
-        )
+        permissions = database.get_permissions(session)
 
-    for permission in permissions:
-        print(permission.short_name, permission.description, sep=':')
+        for permission in permissions:
+            print(permission.short_name, permission.description, sep=':')

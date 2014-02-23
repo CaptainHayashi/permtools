@@ -97,11 +97,27 @@ def session_scope():
         session.close()
 
 
+def get_permissions(session):
+    """Gets all permissions from the database.
+
+    Args:
+        session: The current database session.
+
+    Returns:
+        A list of all Permission objects, ordered by short name.
+    """
+    return session.query(
+        Permission
+    ).order_by(
+        Permission.short_name
+    ).all()
+
+
 def get_role_by_alias(session, alias):
     """Gets a role from the database given its alias.
 
     Args:
-        session: The current database session.j
+        session: The current database session.
         alias: The alias whose corresponding Role is sought.
 
     Returns:
