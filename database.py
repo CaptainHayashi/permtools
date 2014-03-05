@@ -113,6 +113,24 @@ def get_permissions(session):
     ).all()
 
 
+def get_permission_by_short_name(session, short_name):
+    """Gets a permission from the database given its short name.
+
+    Args:
+        session: The current database session.
+        short_name: The short_name whose corresponding Permission is sought.
+
+    Returns:
+        A Permission object representing the permission with the given short
+        name.
+    """
+    return session.query(
+        Permission
+    ).filter(
+        Permission.short_name == short_name
+    ).one()
+
+
 def get_role_by_alias(session, alias):
     """Gets a role from the database given its alias.
 
@@ -130,4 +148,23 @@ def get_role_by_alias(session, alias):
     ).filter(
         Role.alias == alias
     ).one()
-    session.expunge(role)
+
+
+def grant_permission(session, role_alias, permission_short_name):
+    """Grants the permission to the role with the given alias.
+
+    Args:
+        session: The current database session.
+        role_alias: The alias whose corresponding Role is to receive the
+            permission.
+        permission_short_name: The short name of the permission to grant to the
+            Role.
+
+    Returns:
+        True if the permission was successfully granted.
+    """
+    role = get_role_by_alias(session, role_alias)
+    permission = get_permission_by_short_name(session, permission_short_name)
+    role.permissions.append(permission)
+    session.commit()
+
