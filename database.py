@@ -86,19 +86,9 @@ def all_roles():
     """
     query = sqlalchemy.sql.select(
         [
-            sqlalchemy.sql.case(
-                [
-                    (role.c.officer_alias == None, ''),
-                    (role.c.officer_alias != None, role.c.officer_alias)
-                ]
-            ),
+            null_to_empty_string(role.c.officer_alias),
             role.c.officer_name,
-            sqlalchemy.sql.case(
-                [
-                    (role.c.descr == None, ''),
-                    (role.c.descr != None, role.c.descr)
-                ]
-            ),
+            null_to_empty_string(role.c.descr),
             role.c.status,
             role.c.type
         ]
@@ -224,3 +214,21 @@ def grant_permissions(role_alias, permission_short_name_list):
     results.close()
     return ids
 
+
+def null_to_empty_string(column):
+    """Converts a column reference to one replacing nulls with empty strings.
+
+    Args:
+        column: A column reference.
+
+    Returns:
+        A SQLAlchemy construct that can be used in place of the given column,
+        that replaces any NULL values with ''.
+    """
+    null = None  # Stop automatic code checkers from complaining about == None
+    return sqlalchemy.sql.case(
+        [
+            (column == null, ''),
+            (column != null, column)
+        ]
+    )
