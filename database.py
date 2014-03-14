@@ -150,6 +150,37 @@ def get_role_by_alias(session, alias):
     ).one()
 
 
+def permissions_for_roles(role_alias_list):
+    """Gets the set of permissions granted to the given roles.
+
+    This executes one database query.
+
+    Args:
+        role_alias_list: A list of role aliases (for example, station.manager).
+
+    Returns:
+        A list of permission names (for example, AUTH_ADDMEMBER).
+        This list will be sorted in ascending alphabetical order.
+        If a permission is held by more than one of the given roles, it will
+        only be returned once.
+    """
+    query = sqlalchemy.sql.select(
+        [Permission.__table__.c.phpconstant],
+        distinct=True
+    ).select_from(
+        Permission.__table__.join(role_permission).join(Role.__table__)
+    ).where(
+        Role.__table__.c.officer_alias.in_(role_alias_list)
+    ).order_by(
+        Permission.__table__.c.phpconstant
+    )
+    results = engine.execute(query)
+    permissions = [row[Permission.__table__.c.phpconstant] for row in results]
+    results.close()
+
+    return permissions
+
+
 def grant_permission(session, role_alias, permission_short_name):
     """Grants the permission to the role with the given alias.
 

@@ -33,7 +33,5 @@ import sys
 import database
 
 if __name__ == '__main__':
-    with database.session_scope() as session:
-        role = database.get_role_by_alias(session, sys.argv[1])
-        for permission in role.permissions:
-            print(permission.short_name)
+    permissions = database.permissions_for_roles(sys.argv[1:])
+    print('\n'.join(permissions))
