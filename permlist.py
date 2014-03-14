@@ -32,8 +32,5 @@ Usage: permlist.py
 import database
 
 if __name__ == '__main__':
-    with database.session_scope() as session:
-        permissions = database.get_permissions(session)
-
-        for permission in permissions:
-            print(permission.short_name, permission.description, sep=':')
+    permissions = database.all_permissions()
+    print('\n'.join([':'.join(permission) for permission in permissions]))

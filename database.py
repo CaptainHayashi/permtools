@@ -5,19 +5,17 @@ Common database functions and models for permtools.
 import contextlib
 
 import sqlalchemy
-import sqlalchemy.ext.declarative
 
 with open('dbpasswd', 'r') as dbpasswd:
     engine = sqlalchemy.create_engine(dbpasswd.read())
 
-Session = sqlalchemy.orm.sessionmaker(bind=engine)
-Base = sqlalchemy.ext.declarative.declarative_base()
+metadata = sqlalchemy.MetaData()
 
 
 # Table joining Permission and Role in a many-to-many relationship.
 role_permission = sqlalchemy.Table(
     'auth_officer',
-    Base.metadata,
+    metadata,
     sqlalchemy.Column(
         'officerid',
         sqlalchemy.Integer,
@@ -30,105 +28,109 @@ role_permission = sqlalchemy.Table(
     )
 )
 
-class Permission(Base):
-    """A permission token in the permissions system."""
-
-    __tablename__ = 'l_action'
-
-    id = sqlalchemy.Column(
+permission = sqlalchemy.Table(
+    'l_action',
+    metadata,
+    sqlalchemy.Column(
         'typeid', sqlalchemy.Integer, primary_key=True, nullable=False
-    )
-    description = sqlalchemy.Column(
+    ),
+    sqlalchemy.Column(
         'descr', sqlalchemy.String(255), nullable=False
-    )
-    short_name = sqlalchemy.Column(
+    ),
+    sqlalchemy.Column(
         'phpconstant', sqlalchemy.String(100), nullable=False
     )
+)
 
-
-class Role(Base):
-    """A role in the permissions system."""
-
-    __tablename__ = 'officer'
-
-    id = sqlalchemy.Column(
+role = sqlalchemy.Table(
+    'officer',
+    metadata,
+    sqlalchemy.Column(
         'officerid', sqlalchemy.Integer, primary_key=True, nullable=False
-    )
-    name = sqlalchemy.Column(
+    ),
+    sqlalchemy.Column(
         'officer_name', sqlalchemy.String(255), nullable=False
-    )
-    alias = sqlalchemy.Column(
+    ),
+    sqlalchemy.Column(
         'officer_alias', sqlalchemy.String(255)
-    )
-    team = sqlalchemy.Column(
+    ),
+    sqlalchemy.Column(
         'teamid', sqlalchemy.Integer
-    )
-    ordering = sqlalchemy.Column(
+    ),
+    sqlalchemy.Column(
         'ordering', sqlalchemy.SmallInteger
-    )
-    description = sqlalchemy.Column(
+    ),
+    sqlalchemy.Column(
         'descr', sqlalchemy.String(255)
-    )
-    status = sqlalchemy.Column(
-        sqlalchemy.CHAR(1)
-    )
-    role_type = sqlalchemy.Column(
+    ),
+    sqlalchemy.Column(
+        'status', sqlalchemy.CHAR(1)
+    ),
+    sqlalchemy.Column(
         'type', sqlalchemy.CHAR(1)
     )
+)
 
-    permissions = sqlalchemy.orm.relationship(
-        'Permission',
-        secondary=role_permission,
-        backref='roles'
+
+def all_roles():
+    """Gets all roles from the database.
+
+    This executes one database query.
+
+    Returns:
+        A list of all roles in the database.
+        The list is ordered by status, then role type, then name, in ascending
+        alphabetical order.
+        Roles are represented as a tuple of alias, name, description,
+        status and role type.
+    """
+    query = sqlalchemy.sql.select(
+        [
+            sqlalchemy.sql.case(
+                [
+                    (role.c.officer_alias == None, ''),
+                    (role.c.officer_alias != None, role.c.officer_alias)
+                ]
+            ),
+            role.c.officer_name,
+            sqlalchemy.sql.case(
+                [
+                    (role.c.descr == None, ''),
+                    (role.c.descr != None, role.c.descr)
+                ]
+            ),
+            role.c.status,
+            role.c.type
+        ]
+    ).order_by(
+        role.c.status,
+        role.c.type,
+        role.c.officer_name
     )
+    results = engine.execute(query)
+    roles = results.fetchall()
+    results.close()
+    return roles
 
 
-@contextlib.contextmanager
-def session_scope():
-    """Provide a transactional scope around a series of operations."""
-    session = Session()
-    try:
-        yield session
-        session.commit()
-    except:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-
-def get_permissions(session):
+def all_permissions():
     """Gets all permissions from the database.
 
-    Args:
-        session: The current database session.
+    This executes one database query.
 
     Returns:
-        A list of all Permission objects, ordered by short name.
+        A list of permissions, ordered by short name.
+        Permissions are represented as a tuple of short name and description.
     """
-    return session.query(
-        Permission
+    query = sqlalchemy.sql.select(
+        [permission.c.phpconstant, permission.c.descr]
     ).order_by(
-        Permission.short_name
-    ).all()
-
-
-def get_permission_by_short_name(session, short_name):
-    """Gets a permission from the database given its short name.
-
-    Args:
-        session: The current database session.
-        short_name: The short_name whose corresponding Permission is sought.
-
-    Returns:
-        A Permission object representing the permission with the given short
-        name.
-    """
-    return session.query(
-        Permission
-    ).filter(
-        Permission.short_name == short_name
-    ).one()
+        permission.c.phpconstant
+    )
+    results = engine.execute(query)
+    permissions = results.fetchall()
+    results.close()
+    return permissions
 
 
 def get_role_by_alias(session, alias):
@@ -165,37 +167,60 @@ def permissions_for_roles(role_alias_list):
         only be returned once.
     """
     query = sqlalchemy.sql.select(
-        [Permission.__table__.c.phpconstant],
+        [permission.c.phpconstant],
         distinct=True
     ).select_from(
-        Permission.__table__.join(role_permission).join(Role.__table__)
+        permission.join(role_permission).join(role)
     ).where(
-        Role.__table__.c.officer_alias.in_(role_alias_list)
+        role.c.officer_alias.in_(role_alias_list)
     ).order_by(
-        Permission.__table__.c.phpconstant
+        permission.c.phpconstant
     )
     results = engine.execute(query)
-    permissions = [row[Permission.__table__.c.phpconstant] for row in results]
+    permissions = [row[permission.c.phpconstant] for row in results]
     results.close()
 
     return permissions
 
 
-def grant_permission(session, role_alias, permission_short_name):
+def grant_permissions(role_alias, permission_short_name_list):
     """Grants the permission to the role with the given alias.
 
+    This will execute one database query.
+
     Args:
-        session: The current database session.
-        role_alias: The alias whose corresponding Role is to receive the
+        role_alias: The alias whose corresponding role is to receive the
             permission.
-        permission_short_name: The short name of the permission to grant to the
-            Role.
+        permission_short_name: The list of short names of the new permissions to
+            grant to the role.
 
     Returns:
-        True if the permission was successfully granted.
+        A list of the numeric ID of each permission granted.
     """
-    role = get_role_by_alias(session, role_alias)
-    permission = get_permission_by_short_name(session, permission_short_name)
-    role.permissions.append(permission)
-    session.commit()
+    select_query = sqlalchemy.select(
+        [
+            role.c.officerid,
+            permission.c.typeid
+        ]
+    ).where(
+        (role.c.officer_alias == role_alias)
+        & permission.c.phpconstant.in_(permission_short_name_list)
+        & sqlalchemy.not_(
+            sqlalchemy.tuple_(role.c.officerid, permission.c.typeid).in_(
+                sqlalchemy.select(
+                    [ role_permission.c.officerid, role_permission.c.lookupid ]
+                )
+            )
+        )
+    )
+
+    query = role_permission.insert().from_select(
+        [role_permission.c.officerid, role_permission.c.lookupid],
+        select_query
+    ).returning(role_permission.c.lookupid)
+
+    results = engine.execute(query)
+    ids = [row[0] for row in results.fetchall()]
+    results.close()
+    return ids
 

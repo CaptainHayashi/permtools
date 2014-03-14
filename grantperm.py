@@ -30,7 +30,6 @@ import sys
 import database
 
 if __name__ == '__main__':
-    role_alias, permission_short_name = sys.argv[1:3]
-
-    with database.session_scope() as session:
-        database.grant_permission(session, role_alias, permission_short_name)
+    role_alias, *permission_short_names = sys.argv[1:]
+    ids = database.grant_permissions(role_alias, permission_short_names)
+    print("\n".join(str(id) for id in ids))
