@@ -27,9 +27,10 @@ Usage: grantperm.py ROLE_ALIAS PERMISSION_SHORT_NAME
 """
 
 import sys
+import output
 import database
 
 if __name__ == '__main__':
     role_alias, *permission_short_names = sys.argv[1:]
     ids = database.grant_permissions(role_alias, permission_short_names)
-    print("\n".join(str(id) for id in ids))
+    print(output.record_join(ids))

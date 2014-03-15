@@ -30,7 +30,8 @@ Usage: rolelist.py
 """
 
 import database
+import output
 
 if __name__ == '__main__':
     roles = database.all_roles()
-    print('\n'.join([':'.join(role) for role in roles]))
+    print(output.record_field_format(roles))

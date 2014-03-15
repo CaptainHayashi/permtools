@@ -30,7 +30,8 @@ Usage: permlist.py
 """
 
 import database
+import output
 
 if __name__ == '__main__':
     permissions = database.all_permissions()
-    print('\n'.join([':'.join(permission) for permission in permissions]))
+    print(output.record_field_format(permissions))
