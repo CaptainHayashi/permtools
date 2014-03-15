@@ -29,7 +29,7 @@ import sqlalchemy
 with open('dbpasswd', 'r') as dbpasswd:
     engine = sqlalchemy.create_engine(dbpasswd.read())
 
-metadata = sqlalchemy.MetaData()
+metadata = sqlalchemy.MetaData(engine)
 
 
 # Table joining Permission and Role in a many-to-many relationship.
@@ -91,6 +91,89 @@ role = sqlalchemy.Table(
     )
 )
 
+person = sqlalchemy.Table(
+    'member',
+    metadata,
+    sqlalchemy.Column(
+        'memberid', sqlalchemy.Integer, primary_key=True, nullable=False
+    ),
+    sqlalchemy.Column(
+        'fname', sqlalchemy.String(255), nullable=False
+    ),
+    sqlalchemy.Column(
+        'sname', sqlalchemy.String(255), nullable=False
+    )
+    # more columns exist in the database, but are not necessary here.
+)
+
+person_role = sqlalchemy.Table(
+    'member_officer',
+    metadata,
+    sqlalchemy.Column(
+        'member_officerid', sqlalchemy.Integer, nullable=False
+    ),
+    sqlalchemy.Column(
+        'officerid',
+        sqlalchemy.Integer,
+        sqlalchemy.ForeignKey('officer.officerid'),
+        nullable=False
+    ),
+    sqlalchemy.Column(
+        'memberid',
+        sqlalchemy.Integer,
+        sqlalchemy.ForeignKey('member.memberid'),
+        nullable=False
+    ),
+    sqlalchemy.Column(
+        'from_date', sqlalchemy.Date,
+    ),
+    sqlalchemy.Column(
+        'till_date', sqlalchemy.Date,
+    )
+)
+
+
+def roles_for_people(person_names):
+    """Gets all roles for the people with the given names.
+
+    This executes one database query.
+
+    TODO(mattbw): Allow other types of person identifier, as full names are
+    ambiguous.
+
+    Args:
+        person_names: The list of full names of the people whose roles are
+        sought (for example, 'John Smith').
+
+    Returns:
+        A list of tuples (full name, member ID role alias, role name, from
+        timestamp, to timestamp).
+    """
+    query = sqlalchemy.sql.select(
+        [
+            (person.c.fname + ' ' + person.c.sname),
+            person.c.memberid,
+            role.c.officer_alias,
+            role.c.officer_name,
+            sqlalchemy.cast(
+                sqlalchemy.extract('epoch', person_role.c.from_date),
+                sqlalchemy.Integer
+            ),
+            sqlalchemy.cast(
+                sqlalchemy.extract('epoch', person_role.c.till_date),
+                sqlalchemy.Integer
+            )
+        ]
+    ).select_from(
+        person.join(person_role).join(role)
+    ).where(
+        (person.c.fname + ' ' + person.c.sname).in_(person_names)
+    )
+    results = engine.execute(query)
+    roles = list(results.fetchall())
+    results.close()
+    return roles
+
 
 def all_roles():
     """Gets all roles from the database.
@@ -148,8 +231,13 @@ def permissions_for_roles(role_alias_list):
 
     This executes one database query.
 
+    TODO(mattbw): Since not every role has an alias, this function allows role
+    names. Either fix roles not having aliases or make this well-defined
+    behaviour across the board?
+
     Args:
-        role_alias_list: A list of role aliases (for example, station.manager).
+        role_alias_list: A list of role aliases (for example, station.manager)
+        OR names (for example, 'Station Manager').
 
     Returns:
         A list of permission names (for example, AUTH_ADDMEMBER).
@@ -163,7 +251,8 @@ def permissions_for_roles(role_alias_list):
     ).select_from(
         permission.join(role_permission).join(role)
     ).where(
-        role.c.officer_alias.in_(role_alias_list)
+        (role.c.officer_alias.in_(role_alias_list))
+        | (role.c.officer_name.in_(role_alias_list))
     ).order_by(
         permission.c.phpconstant
     )
