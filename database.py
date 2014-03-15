@@ -143,25 +143,6 @@ def all_permissions():
     return permissions
 
 
-def get_role_by_alias(session, alias):
-    """Gets a role from the database given its alias.
-
-    Args:
-        session: The current database session.
-        alias: The alias whose corresponding Role is sought.
-
-    Returns:
-        A Role object representing the role with the given alias.
-    """
-    return session.query(
-        Role
-    ).options(
-        sqlalchemy.orm.subqueryload('permissions')
-    ).filter(
-        Role.alias == alias
-    ).one()
-
-
 def permissions_for_roles(role_alias_list):
     """Gets the set of permissions granted to the given roles.
 
